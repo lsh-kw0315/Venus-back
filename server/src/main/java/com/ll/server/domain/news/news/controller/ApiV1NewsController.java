@@ -14,10 +14,7 @@ import com.ll.server.global.utils.MyConstant;
 import com.ll.server.global.validation.PageLimitSizeValidator;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -64,12 +61,7 @@ public class ApiV1NewsController {
         //검색을 안 할 때
         if (category.isBlank() && keyword.isBlank()) {
             //Page<NewsDTO> news = newsService.getAll(pageable).map(newsService::convertToDTO);
-            Page<NewsDTO> result = newsService.getAll(pageable);
-            Page<NewsOnly> news = new PageImpl<>(
-                    result.getContent().stream().map(NewsOnly::new).collect(Collectors.toList())
-                    , result.getPageable()
-                    , result.getTotalElements()
-            );
+            Page<NewsOnly> news = newsService.getAll(pageable);
             return ApiResponse.of(CustomPage.of(news));
         }
 
@@ -123,9 +115,9 @@ public class ApiV1NewsController {
     }
 
     //뉴스 조회 API
-    //뉴스 최초 조회 API 전통적인 페이지네이션
+    //뉴스 최초 조회 API 전통적인 페이지네이션. 리포스트는 따로 조회
     @GetMapping("/{id}")
-    public ApiResponse<NewsDTO> getById(@PathVariable("id") Long newsId) {
+    public ApiResponse<NewsOnly> getById(@PathVariable("id") Long newsId) {
 
         News news = newsService.getNews(newsId);
         NewsOnly dto = new NewsOnly(news);
@@ -133,9 +125,9 @@ public class ApiV1NewsController {
         return ApiResponse.of(dto);
     }
 
-    //뉴스 최초 조회 무한스크롤
+    //뉴스 최초 조회 무한스크롤. 리포스트는 따로 조회하도록
     @GetMapping("/infinityTest/{newsId}")
-    public ApiResponse<NewsDTO> getByIdInfinity(@PathVariable("newsId") Long newsId) {
+    public ApiResponse<NewsOnly> getByIdInfinity(@PathVariable("newsId") Long newsId) {
 
         News news = newsService.getNews(newsId);
         NewsOnly newsOnly = new NewsOnly(news);
@@ -144,8 +136,8 @@ public class ApiV1NewsController {
     }
 
     @PatchMapping("/{id}")
-    public ApiResponse<NewsDTO> updateNews(@PathVariable("id") Long id, @RequestBody NewsUpdateRequest request) {
-        NewsDTO newsDTO = newsService.updateNews(id, request);
+    public ApiResponse<NewsOnly> updateNews(@PathVariable("id") Long id, @RequestBody NewsUpdateRequest request) {
+        NewsOnly newsDTO = newsService.updateNews(id, request);
 
         return ApiResponse.of(newsDTO);
     }
@@ -168,9 +160,13 @@ public class ApiV1NewsController {
     ) {
         //타입으로는 publisher, title, content, category(이건 별도로 드랍다운 방식으로 선택하거나 할 듯. 나머지는 체크박스)가 올 수 있다.
         PageLimitSizeValidator.validateSize(page, size, 50);
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("publishedAt","id").descending());
         Page<News> result = newsService.search(keyword, hasTitle, hasContent, hasPublisher, category, pageable);
-
+        Page<NewsOnly> dtos = new PageImpl<>(
+          result.getContent().stream().map(NewsOnly::new).collect(Collectors.toList()),
+          result.getPageable(),
+          result.getTotalElements()
+        );
         return ApiResponse.of(result);
     }
 

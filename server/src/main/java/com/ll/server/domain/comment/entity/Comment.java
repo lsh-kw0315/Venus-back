@@ -8,6 +8,7 @@ import com.ll.server.global.jpa.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class Comment extends BaseEntity {
     private LocalDateTime deletedAt = null;
 
     @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 100)
     @ToString.Exclude
     @Builder.Default
     @JsonIgnore

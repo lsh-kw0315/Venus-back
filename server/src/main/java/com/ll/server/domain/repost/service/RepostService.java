@@ -1,14 +1,21 @@
 package com.ll.server.domain.repost.service;
 
 import com.ll.server.domain.comment.dto.CommentDTO;
+import com.ll.server.domain.comment.dto.CommentResponse;
 import com.ll.server.domain.comment.dto.CommentWriteRequest;
 import com.ll.server.domain.comment.entity.Comment;
 import com.ll.server.domain.comment.repository.CommentRepository;
 import com.ll.server.domain.like.dto.LikeDTO;
+import com.ll.server.domain.like.dto.LikeResponse;
 import com.ll.server.domain.like.entity.Like;
+import com.ll.server.domain.like.repository.LikeRepository;
 import com.ll.server.domain.member.entity.Member;
 import com.ll.server.domain.member.repository.MemberRepository;
 import com.ll.server.domain.member.service.MemberService;
+import com.ll.server.domain.mention.commentmention.entity.CommentMention;
+import com.ll.server.domain.mention.commentmention.repository.CommentMentionRepository;
+import com.ll.server.domain.mention.repostmention.entity.RepostMention;
+import com.ll.server.domain.mention.repostmention.repository.RepostMentionRepository;
 import com.ll.server.domain.news.news.entity.News;
 import com.ll.server.domain.news.news.service.NewsService;
 import com.ll.server.domain.notification.Notify;
@@ -23,6 +30,7 @@ import com.ll.server.global.response.enums.ReturnCode;
 import com.ll.server.global.response.exception.CustomException;
 import com.ll.server.global.response.exception.CustomRequestException;
 import com.ll.server.global.security.util.AuthUtil;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -34,6 +42,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -46,6 +55,9 @@ public class RepostService {
     private final NewsService newsService;
     private final S3Service s3Service;
     private final MemberRepository memberRepository;
+    private final LikeRepository likeRepository;
+    private final CommentMentionRepository commentMentionRepository;
+    private final RepostMentionRepository repostMentionRepository;
 
     @Transactional
     @Notify
@@ -55,6 +67,7 @@ public class RepostService {
         News news = newsService.getNews(request.getNewsId());
 
         List<Member> metionedMemberList = memberService.getMembersByNickName(request.getMentionedNames());
+
 
         // ✅ S3 업로드 로직 추가
         String imageUrl = null;
@@ -92,10 +105,16 @@ public class RepostService {
 
     public Page<RepostOnly> findAll(Pageable pageable) {
         Page<Repost> result = repostRepository.findAllByDeletedAtIsNull(pageable);
+        return getRepostOnlyPage(result);
+    }
 
+    @NotNull
+    private Page<RepostOnly> getRepostOnlyPage(Page<Repost> result) {
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(result.getContent());
+        Map<Long, List<RepostMention>> map = repostMentions.stream().collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
         return new PageImpl<>(
                 result.getContent().stream()
-                        .map(RepostOnly::new)
+                        .map(repost -> new RepostOnly(repost, map.get(repost.getId())))
                         .collect(Collectors.toList()),
                 result.getPageable(),
                 result.getTotalElements()
@@ -104,37 +123,35 @@ public class RepostService {
 
     public Page<RepostOnly> findByMember(Member member, Pageable pageable) {
         Page<Repost> result = repostRepository.findRepostsByMemberAndDeletedAtIsNull(member, pageable);
-
-        return new PageImpl<>(
-                result.getContent().stream()
-                        .map(RepostOnly::new)
-                        .collect(Collectors.toList()),
-                result.getPageable(),
-                result.getTotalElements()
-        );
+        return getRepostOnlyPage(result);
     }
 
     public List<RepostOnly> firstGetAll(int size) {
-        return repostRepository.findAllByDeletedAtIsNullOrderByCreateDateDescIdDesc(Limit.of(size))
-                .stream()
-                .map(RepostOnly::new).collect(Collectors.toList());
+        List<Repost> reposts = repostRepository.findAllByDeletedAtIsNullOrderByCreateDateDescIdDesc(Limit.of(size));
+        List<RepostMention> mentions = repostMentionRepository.getMentionsOfRelatedRepost(reposts);
+        Map<Long, List<RepostMention>> map = mentions.stream().collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
+
+        return reposts.stream().map(repost -> new RepostOnly(repost, map.get(repost.getId()))).collect(Collectors.toList());
     }
 
     public List<RepostOnly> afterGetAll(int size, LocalDateTime lastTime, Long lastId) {
-        return repostRepository.findAllByDeletedAtIsNullAndCreateDateBeforeAndIdLessThanOrderByCreateDateDescIdDesc(lastTime, lastId, Limit.of(size))
-                .stream()
-                .map(RepostOnly::new).collect(Collectors.toList());
+        List<Repost> reposts = repostRepository.findAllByDeletedAtIsNullAndCreateDateBeforeAndIdLessThanOrderByCreateDateDescIdDesc(lastTime, lastId, Limit.of(size));
+        return getRepostOnlyList(reposts);
     }
 
     public Page<CommentDTO> getCommentPage(Long postId, Pageable pageable) {
         Repost repost = getRepost(postId);
 
-        Page<Comment> comments = commentRepository.findCommentsByRepost_IdAndDeletedAtIsNull(postId, pageable);
+        Page<Comment> comments = commentRepository.getCommentPage(repost, pageable);
+        List<CommentMention> commentMentions = commentMentionRepository.getRelatedMentions(comments.getContent());
+        Map<Long, List<CommentMention>> map = commentMentions.stream().collect(Collectors.groupingBy(commentMention -> commentMention.getComment().getId()));
 
         return new PageImpl<>(
-                comments.getContent().stream()
-                        .map(CommentDTO::new).collect(Collectors.toList()),
-                comments.getPageable(),
+                comments.stream()
+                        .map(comment ->
+                            new CommentDTO(comment, map.get(comment.getId()))
+                        ).collect(Collectors.toList()),
+                pageable,
                 comments.getTotalElements()
         );
     }
@@ -142,28 +159,32 @@ public class RepostService {
     public List<CommentDTO> firstGetComment(Long postId, int size) {
         Repost repost = getRepost(postId);
 
-        List<Comment> result = commentRepository.findCommentsByRepost_IdAndDeletedAtIsNullOrderByCreateDateAscIdAsc(postId, Limit.of(size));
-
-        return result.stream().map(CommentDTO::new).collect(Collectors.toList());
+        List<Comment> result = commentRepository.findCommentsByRepostAndDeletedAtIsNullOrderByCreateDateAscIdAsc(repost, Limit.of(size));
+        return getCommentDTOS(result);
     }
 
     public List<CommentDTO> afterGetComment(Long postId, int size, LocalDateTime lastTime, long lastId) {
         Repost repost = getRepost(postId);
-        List<Comment> result = commentRepository.findCommentsByRepost_IdAndIdGreaterThanAndCreateDateAfterAndDeletedAtIsNullOrderByCreateDateAscIdAsc(postId, lastId, lastTime, Limit.of(size));
-
-        return result
-                .stream()
-                .map(CommentDTO::new).collect(Collectors.toList());
+        List<Comment> result = commentRepository.findCommentsByRepostAndIdGreaterThanAndCreateDateAfterAndDeletedAtIsNullOrderByCreateDateAscIdAsc(repost, lastId, lastTime, Limit.of(size));
+        return getCommentDTOS(result);
     }
 
     public List<CommentDTO> getAllComment(Long postId) {
         Repost repost = getRepost(postId);
 
-        List<Comment> result = commentRepository.findCommentsByRepost_IdAndDeletedAtIsNull(postId);
+        List<Comment> result = commentRepository.findCommentsByRepostAndDeletedAtIsNull(repost);
+        return getCommentDTOS(result);
+    }
+
+    @NotNull
+    private List<CommentDTO> getCommentDTOS(List<Comment> result) {
+        List<CommentMention> commentMentions = commentMentionRepository.getRelatedMentions(result);
+        Map<Long, List<CommentMention>> map = commentMentions.stream().collect(Collectors.groupingBy(commentMention -> commentMention.getComment().getId()));
+
 
         return result
                 .stream()
-                .map(CommentDTO::new).collect(Collectors.toList());
+                .map(comment -> new CommentDTO(comment,map.get(comment.getId()))).collect(Collectors.toList());
     }
 
     @Transactional
@@ -196,8 +217,10 @@ public class RepostService {
         checkWriter(target.getMember());
 
         target.setContent(content);
+        List<CommentMention> commentMentions = commentMentionRepository.findCommentMentionsByComment(target);
 
-        return new CommentDTO(target);
+
+        return new CommentDTO(target,commentMentions);
     }
 
     private void checkWriter(Member target) {
@@ -207,12 +230,10 @@ public class RepostService {
     }
 
     private Comment getComment(Long commentId, Repost repost) {
-        Comment getComment = repost.getComments().stream()
-                .filter(comment -> comment.getId().equals(commentId) && comment.getDeletedAt() == null)
-                .findFirst()
-                .orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
+        Comment c = commentRepository.findCommentByIdAndRepostAndDeletedAtIsNull(commentId,repost);
+        if(c == null) throw new CustomException(ReturnCode.NOT_FOUND_ENTITY);
+        return c;
 
-        return getComment;
     }
 
     @Transactional
@@ -230,23 +251,34 @@ public class RepostService {
     }
 
     public Repost getRepost(Long postId) {
-        return repostRepository.findById(postId)
+        return repostRepository.findByIdAndDeletedAtIsNull(postId)
                 .orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
     }
 
     public RepostDTO getRepostDTOById(Long postId) {
         Repost repost = getRepost(postId);
 
-        return new RepostDTO(repost);
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfOneRepost(repost);
+
+        List<Comment> comments = commentRepository.getOneReposComment(repost);
+        List<CommentMention> commentMentions = commentMentionRepository.getRelatedMentions(comments);
+        Map<Long, List<CommentMention>> map = commentMentions.stream().collect(Collectors.groupingBy(commentMention -> commentMention.getComment().getId()));
+        List<CommentDTO> commentDTOS = comments.stream().map(
+                comment ->  new CommentDTO(comment, map.get(comment.getId()))
+        ).toList();
+
+        List<Like> likes = likeRepository.findLikesByRepostAndDeletedIsFalse(repost);
+        List<LikeDTO> likeDTOS = likes.stream().map(LikeDTO::new).toList();
+
+        return new RepostDTO(repost, repostMentions, new CommentResponse(commentDTOS), new LikeResponse(likeDTOS));
     }
 
     public List<LikeDTO> getAllLike(Long repostId) {
         Repost repost = getRepost(repostId);
 
-        return repost.getLikes().stream()
-                .filter(like -> !like.getDeleted())
-                .map(LikeDTO::new)
-                .collect(Collectors.toList());
+        List<Like> result = likeRepository.findLikesByRepostAndDeletedIsFalse(repost);
+
+        return result.stream().map(LikeDTO::new).collect(Collectors.toList());
     }
 
     @Transactional
@@ -254,14 +286,10 @@ public class RepostService {
         Repost repost = getRepost(repostId);
         Member member = memberRepository.findById(userId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
 
-        List<Like> likes = repost.getLikes();
+        Like result = likeRepository.findLikeByRepostAndMemberAndDeletedIsFalse(repost, member)
+                .orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
 
-        Like memberLike = likes.stream()
-                .filter(like -> !like.getDeleted() && like.getMember().getId().equals(userId))
-                .findFirst()
-                .orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
-
-        memberLike.setDeleted(true);
+        result.setDeleted(true);
     }
 
     @Transactional
@@ -322,48 +350,94 @@ public class RepostService {
     public Page<RepostUnderNews> getNewsRepostCursorPagination(Long newsId, Pageable pageable) {
         Page<Repost> reposts = repostRepository.getNewsReposts(newsId, pageable);
         return new PageImpl<>(
-                reposts.getContent().stream()
-                        .map(RepostUnderNews::new)
-                        .collect(Collectors.toList()),
+                getRepostUnderNews(reposts.getContent()),
                 reposts.getPageable(),
                 reposts.getTotalElements()
         );
     }
 
     public List<RepostUnderNews> firstGetNewsRepost(Long newsId, int size) {
+        //댓글 가져오는 것은 네이티브 쿼리의 Row Number를 이용해서 상위 몇 개 댓글만 나오게 할 수가 있다고 한다.
+        //근데 이건 나중에 알아봐야할 듯..
         List<Repost> reposts = repostRepository.firstGetNewsReposts(newsId, Limit.of(size));
+        return getRepostUnderNews(reposts);
+    }
+
+    @NotNull
+    private List<RepostUnderNews> getRepostUnderNews(List<Repost> reposts) {
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(reposts);
+        Map<Long, List<RepostMention>> repostMentionMap = repostMentions.stream().collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
+
+
+        List<Comment> comments = commentRepository.getAllRepostComment(reposts);
+
+        List<CommentMention> commentMentions = commentMentionRepository.getRelatedMentions(comments);
+        Map<Long, List<CommentMention>> commentMentionMap = commentMentions.stream()
+                .collect(Collectors.groupingBy(commentMention -> commentMention.getComment().getId()));
+
+        Map<Long, List<CommentDTO>> commentMap = comments.stream().map(
+                comment -> new CommentDTO(comment, commentMentionMap.get(comment.getId()))
+        ).collect(Collectors.groupingBy(CommentDTO::getRepostId));
+
+        List<Like> likes = likeRepository.getLikesOfRelatedReposts(reposts);
+        Map<Long, List<LikeDTO>> likeMap = likes.stream().map(LikeDTO::new).collect(Collectors.groupingBy(LikeDTO::getRepostId));
+
         return reposts.stream()
-                .map(RepostUnderNews::new)
+                .map(repost -> new RepostUnderNews(repost,
+                        new CommentResponse(commentMap.get(repost.getId())),
+                        new LikeResponse(likeMap.get(repost.getId())),
+                                repostMentionMap.get(repost.getId())
+                )
+                )
                 .collect(Collectors.toList());
     }
 
     public List<RepostUnderNews> afterGetNewsRepost(Long newsId, int size, LocalDateTime lastTime, Long lastId) {
         List<Repost> reposts = repostRepository.afterGetNewsReposts(newsId, lastTime, lastId, Limit.of(size));
-        return reposts.stream()
-                .map(RepostUnderNews::new)
-                .collect(Collectors.toList());
+        return getRepostUnderNews(reposts);
     }
 
-    public List<RepostOnly> searchContent(String keyword) {
-        List<Repost> reposts = repostRepository.findByContentContainingAndDeletedAtIsNull(keyword);
-        return reposts.stream()
-                .map(RepostOnly::new)
-                .collect(Collectors.toList());
+    public Page<RepostOnly> searchContent(String keyword, Pageable pageable) {
+        Page<Repost> reposts = repostRepository.findByContentContainingAndDeletedAtIsNull(keyword,pageable);
+        return new PageImpl<>(
+                getRepostOnlyList(reposts.getContent()),
+                reposts.getPageable(),
+                reposts.getTotalElements()
+        );
+    }
+
+    public List<RepostOnly> searchContentFirst(String keyword, int size){
+        List<Repost> reposts = repostRepository.searchContentCursorFirst(keyword,Limit.of(size));
+        return getRepostOnlyList(reposts);
+    }
+
+    public List<RepostOnly> searchContentAfter(String keyword, int size, Long lastId, LocalDateTime lastTime){
+        List<Repost> reposts = repostRepository.searchContentCursorAfter(keyword,lastTime,lastId,Limit.of(size));
+        return getRepostOnlyList(reposts);
+    }
+
+    @NotNull
+    private List<RepostOnly> getRepostOnlyList(List<Repost> reposts) {
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(reposts);
+        Map<Long, List<RepostMention>> map = repostMentions.stream().collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
+        return reposts.stream().map(repost -> new RepostOnly(repost, map.get(repost.getId()))).toList();
     }
 
     public List<RepostOnly> getHotTopics() {
-        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime startOfDay = LocalDateTime.of(1970,1,1,0,0);
+                //LocalDateTime.now().toLocalDate().atStartOfDay();
         List<Repost> hotReposts = repostRepository.findTodayshotReposts(startOfDay, PageRequest.of(0, 5));
         //top 5
 
-        return hotReposts.stream()
-                .map(RepostOnly::new)
-                .collect(Collectors.toList());
+        return getRepostOnlyList(hotReposts);
+
     }
 
     public Page<RepostOnly> findLikeReposts(Long memberId, Pageable pageable) {
         Page<Repost> reposts = repostRepository.findLikeRepost(memberId, pageable);
-        List<RepostOnly> dtos = reposts.getContent().stream().map(RepostOnly::new).toList();
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(reposts.getContent());
+        Map<Long, List<RepostMention>> map = repostMentions.stream().collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
+        List<RepostOnly> dtos = reposts.stream().map(repost -> new RepostOnly(repost, map.get(repost.getId()))).toList();
 
         return new PageImpl<>(dtos, reposts.getPageable(), reposts.getTotalElements());
 

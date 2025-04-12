@@ -14,12 +14,9 @@ import com.ll.server.domain.repost.repository.RepostRepository;
 import com.ll.server.domain.repost.service.RepostService;
 import com.ll.server.domain.saved.repository.SavedRepository;
 import lombok.RequiredArgsConstructor;
-import net.datafaker.Faker;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Locale;
 
 @Component
 @RequiredArgsConstructor
@@ -48,7 +45,7 @@ public class DataLoader implements CommandLineRunner {
 //        newsDocRepository.deleteAll();
 
 
-        Faker faker=new Faker(Locale.KOREA);
+//        Faker faker=new Faker(Locale.KOREA);
 //
 //
 //
@@ -96,8 +93,8 @@ public class DataLoader implements CommandLineRunner {
 ////            }
 ////        }
 //
-//           newsFetchService.fetchNews()
-
+//        newsFetchService.fetchNews();
+//
 //
 //
 //        if(repostRepository.findAll().isEmpty()){

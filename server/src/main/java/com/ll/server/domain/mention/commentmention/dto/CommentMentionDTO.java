@@ -11,9 +11,11 @@ import lombok.Getter;
 public class CommentMentionDTO {
     private Long mentionUserId;
     private String mentionName;
+    private Long mentionCommentId;
 
     public CommentMentionDTO(CommentMention mention) {
         mentionUserId = mention.getMember().getId();
         mentionName = "@" + mention.getMember().getNickname();
+        mentionCommentId = mention.getComment().getId();
     }
 }

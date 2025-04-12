@@ -9,7 +9,9 @@ import com.ll.server.domain.news.news.entity.News;
 import com.ll.server.domain.news.news.repository.NewsRepository;
 import com.ll.server.domain.notification.Notify;
 import com.ll.server.domain.repost.dto.RepostUnderNews;
+import com.ll.server.domain.repost.repository.RepostRepository;
 import com.ll.server.domain.saved.entity.Saved;
+import com.ll.server.domain.saved.repository.SavedRepository;
 import com.ll.server.global.response.enums.ReturnCode;
 import com.ll.server.global.response.exception.CustomException;
 import com.ll.server.global.response.exception.CustomRequestException;
@@ -32,13 +34,15 @@ import java.util.stream.Collectors;
 public class NewsService {
     private final NewsRepository newsRepository;
     private final MemberRepository memberRepository;
+    private final RepostRepository repostRepository;
+    private final SavedRepository savedRepository;
 
-    public Page<NewsDTO> getAll(Pageable pageable) {
+    public Page<NewsOnly> getAll(Pageable pageable) {
         Page<News> result = newsRepository.findAllByDeletedAtIsNullOrderByPublishedAtDescIdDesc(pageable);
 
         return new PageImpl<>(
                 result.getContent().stream()
-                        .map(NewsDTO::new)
+                        .map(NewsOnly::new)
                         .collect(Collectors.toList())
                 , result.getPageable()
                 , result.getTotalElements()
@@ -86,14 +90,14 @@ public class NewsService {
     }
 
     @Transactional
-    public NewsDTO updateNews(Long id, NewsUpdateRequest request) {
+    public NewsOnly updateNews(Long id, NewsUpdateRequest request) {
         News news = getNews(id);
 
         checkAdmin();
 
         news.setContent(request.getContent());
         news.setTitle(request.getTitle());
-        return new NewsDTO(news);
+        return new NewsOnly(news);
     }
 
 
@@ -177,9 +181,11 @@ public class NewsService {
         News news = getNews(newsId);
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
 
-        Saved find = news.getSavedList().stream().filter(saved -> !saved.getDeleted() && saved.getMember().getId().equals(memberId))
-                .findFirst()
-                .orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
+        Saved find = savedRepository.getOneMemberSavedNews(news, member).orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
+
+//                news.getSavedList().stream().filter(saved -> !saved.getDeleted() && saved.getMember().getId().equals(memberId))
+//                .findFirst()
+//                .orElseThrow(() -> new CustomRequestException(ReturnCode.NOT_FOUND_ENTITY));
 
         find.setDeleted(true);
 

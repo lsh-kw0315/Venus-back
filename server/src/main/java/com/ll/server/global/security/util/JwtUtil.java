@@ -50,14 +50,33 @@ public class JwtUtil {
                 .getSubject();
     }
 
-    public boolean validateToken(String token) {
-        try {
+    public void decodeToken(String token) {
             Jwts.parser()
                     .verifyWith(key)
                     .build()
                     .parseSignedClaims(token);
+    }
+
+    public boolean isTokenValid(String token){
+        try{
+            decodeToken(token);
             return true;
-        } catch (Exception e) {
+        }catch (Exception e){
+            return false;
+        }
+    }
+
+    public boolean validateExpiration(String token){
+        try{
+            return
+            Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getExpiration()
+                    .after(new Date());
+        }catch (Exception e){
             log.error("유효하지 않은 JWT Token: {}", e.getMessage());
             return false;
         }
@@ -98,6 +117,7 @@ public class JwtUtil {
             cookie.setMaxAge(REFRESH_TOKEN_EXPIRATION_TIME.intValue());
         } else {
             cookie.setMaxAge(ACCESS_TOKEN_EXPIRATION_TIME.intValue());
+            //cookie.setMaxAge(1000);
         }
         // cookie.setHttpOnly(true); // Javascript 에서 접근 방지
         // cookie.setSecure(true); // HTTPS 환경에서만 전송

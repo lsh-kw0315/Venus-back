@@ -15,6 +15,8 @@ import com.ll.server.domain.notification.service.NotificationService;
 import com.ll.server.domain.repost.dto.RepostDTO;
 import com.ll.server.domain.repost.entity.Repost;
 import com.ll.server.domain.repost.repository.RepostRepository;
+import com.ll.server.global.response.enums.ReturnCode;
+import com.ll.server.global.response.exception.CustomException;
 import com.ll.server.global.sse.EmitterManager;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -46,7 +48,8 @@ public class NotifyAspect {
             Long followerId = repostDTO.getWriterId();
             String followerName = repostDTO.getNickname();
 
-            List<Follow> followList = followRepository.findFollowsByFollower_Id(followerId);
+            Member follower = memberRepository.findById(followerId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+            List<Follow> followList = followRepository.findFollowsByFollower(follower);
 
             String url = "http://localhost:8080/api/v1/repost/" + repostId;
 

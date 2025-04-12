@@ -7,6 +7,7 @@ plugins {
 group = "com.ll"
 version = "0.0.1-SNAPSHOT"
 val springCloudVersion by extra("2024.0.0")
+val queryDslVersion = "5.0.0" // QueryDSL Version Setting
 
 java {
 	toolchain {
@@ -69,6 +70,12 @@ dependencies {
     // https://mvnrepository.com/artifact/net.datafaker/datafaker repost 가데이터 밀어넣기
     implementation("net.datafaker:datafaker:2.4.2")
 
+	// QueryDSL Implementation
+	implementation ("com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta")
+	annotationProcessor("com.querydsl:querydsl-apt:${queryDslVersion}:jakarta")
+	annotationProcessor("jakarta.annotation:jakarta.annotation-api")
+	annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+
 }
 dependencyManagement {
 	imports {
@@ -81,4 +88,26 @@ tasks.withType<Test> {
 
 tasks.jar {
 	enabled = false
+}
+
+/**
+ * QueryDSL Build Options
+ */
+val querydslDir = "src/main/generated"
+
+sourceSets {
+	getByName("main").java.srcDirs(querydslDir)
+}
+
+tasks.withType<JavaCompile> {
+	options.generatedSourceOutputDirectory = file(querydslDir)
+
+	// 위의 설정이 안되면 아래 설정 사용
+	// options.generatedSourceOutputDirectory.set(file(querydslDir))
+}
+
+tasks.named("clean") {
+	doLast {
+		file(querydslDir).deleteRecursively()
+	}
 }

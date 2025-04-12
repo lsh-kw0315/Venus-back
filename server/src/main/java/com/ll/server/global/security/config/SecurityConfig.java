@@ -1,5 +1,6 @@
 package com.ll.server.global.security.config;
 
+import com.ll.server.global.redis.RedisService;
 import com.ll.server.global.security.custom.CustomOAuth2UserService;
 import com.ll.server.global.security.custom.CustomUserDetailsService;
 import com.ll.server.global.security.filter.JwtAuthenticationFilter;
@@ -37,6 +38,7 @@ public class SecurityConfig {
     private final AuthenticationConfiguration authenticationConfiguration;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final RedisService redisService;
 
     /*
     @Bean
@@ -116,7 +118,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth     // 인가 (Authorization) 설정
-                        .requestMatchers("/api/v1/member/signup", "/api/v1/member/login", "/oauth2/**", "/api/v1/member/auth", "/h2-console", "/h2-console/**").permitAll()
+                        .requestMatchers("/api/v1/member/signup", "/api/v1/member/login", "/login/**","/oauth2/**", "/api/v1/member/auth", "/h2-console", "/h2-console/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/publisher/**").hasAnyRole("PUBLISHER", "ADMIN")
                         .anyRequest().authenticated()
@@ -134,7 +136,6 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2           // OAuth2 로그인 설정
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)
-                        .redirectionEndpoint(rd -> rd.baseUri("/oauth2/callback/*"))
                 )
 
                 // JWT Filter 추가
@@ -160,7 +161,7 @@ public class SecurityConfig {
 
     @Bean
     public JwtAuthorizationFilter jwtAuthorizationFilter() {
-        return new JwtAuthorizationFilter(jwtUtil, customUserDetailsService);
+        return new JwtAuthorizationFilter(jwtUtil, customUserDetailsService, redisService);
     }
 
     @Bean
