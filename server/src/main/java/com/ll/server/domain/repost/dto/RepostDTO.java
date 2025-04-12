@@ -5,7 +5,8 @@ import com.ll.server.domain.comment.dto.CommentResponse;
 import com.ll.server.domain.like.dto.LikeDTO;
 import com.ll.server.domain.like.dto.LikeResponse;
 import com.ll.server.domain.mention.repostmention.dto.RepostMentionDTO;
-import com.ll.server.domain.news.news.dto.NewsDTO;
+import com.ll.server.domain.mention.repostmention.entity.RepostMention;
+import com.ll.server.domain.news.news.dto.NewsOnly;
 import com.ll.server.domain.news.news.entity.News;
 import com.ll.server.domain.repost.entity.Repost;
 import lombok.AllArgsConstructor;
@@ -23,7 +24,7 @@ public class RepostDTO {
     private Long repostId;
     private Long writerId;
     private String nickname;
-    private NewsDTO news;
+    private NewsOnly news;
     private String content;
     private List<RepostMentionDTO> mentions;
     private CommentResponse commentInfo;
@@ -32,9 +33,25 @@ public class RepostDTO {
     private String memberProfileImageUrl;
     private LocalDateTime createDate;
 
+    public RepostDTO(Repost repost, List<RepostMention> mentions, CommentResponse comments, LikeResponse like){
+        this.news = new NewsOnly(repost.getNews());
+        repostId = repost.getId();
+        writerId = repost.getMember().getId();
+        nickname = repost.getMember().getNickname();
+        content = repost.getContent();
+        imageUrl = repost.getImageUrl();
+        memberProfileImageUrl = repost.getMember().getProfileUrl();
+        createDate = repost.getCreateDate();
+
+        this.mentions = mentions.stream().map(RepostMentionDTO::new).collect(Collectors.toList());
+
+        this.commentInfo = comments;
+        this.likeInfo = like;
+    }
+
     public RepostDTO(Repost repost) {
         News newsEntity = repost.getNews();
-        news = NewsDTO.builder()
+        news = NewsOnly.builder()
                 .publisherName(newsEntity.getPublisher())
                 .author(newsEntity.getAuthor())
                 .id(newsEntity.getId())

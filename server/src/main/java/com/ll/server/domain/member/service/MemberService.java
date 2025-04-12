@@ -1,20 +1,17 @@
 package com.ll.server.domain.member.service;
 
-import com.ll.server.domain.follow.repository.FollowRepository;
-import com.ll.server.domain.like.repository.LikeRepository;
 import com.ll.server.domain.member.auth.dto.SignupRequestDto;
 import com.ll.server.domain.member.dto.MemberDto;
 import com.ll.server.domain.member.dto.MemberUpdateParam;
+import com.ll.server.domain.member.entity.ConnectedProvider;
 import com.ll.server.domain.member.entity.Member;
 import com.ll.server.domain.member.enums.MemberRole;
-import com.ll.server.domain.member.enums.Provider;
+import com.ll.server.domain.member.repository.ConnectedProviderRepository;
 import com.ll.server.domain.member.repository.MemberRepository;
-import com.ll.server.domain.repost.repository.RepostRepository;
 import com.ll.server.global.aws.s3.S3Service;
 import com.ll.server.global.response.enums.ReturnCode;
 import com.ll.server.global.response.exception.CustomException;
 import com.ll.server.global.response.exception.CustomRequestException;
-import com.ll.server.global.security.util.AuthUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -34,11 +31,9 @@ import java.util.List;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final ConnectedProviderRepository connectedProviderRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final S3Service s3Service;
-    private final RepostRepository repostRepository;
-    private final FollowRepository followRepository;
-    private final LikeRepository likeRepository;
 
     @Transactional
     public Member signup(SignupRequestDto requestDto) {
@@ -51,7 +46,6 @@ public class MemberService {
                 .password(passwordEncoder.encode(requestDto.getPassword()))
                 .nickname(requestDto.getNickname())
                 .role(MemberRole.USER)
-                .provider(Provider.LOCAL)
                 .build();
 
         try {
@@ -85,13 +79,13 @@ public class MemberService {
 
     // 마이페이지 - 비밀번호 수정 (소셜 로그인 사용자는 비밀번호 변경 불가)
     @Transactional
-    public void updatePassword(String oldPassword, String newPassword) {
-        long id = AuthUtil.getCurrentMemberId();
-
-        Member member = memberRepository.findById(id)
+    public void updatePassword(Long currentMemberId, String oldPassword, String newPassword) {
+        Member member = memberRepository.findById(currentMemberId)
                 .orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
 
-        if (member.getProvider() != Provider.LOCAL) {
+        List<ConnectedProvider> isSocial = connectedProviderRepository.findConnectedProvidersByMember(member);
+
+        if(!isSocial.isEmpty()){
             throw new CustomException(ReturnCode.INVALID_REQUEST);
         }
 
@@ -112,8 +106,9 @@ public class MemberService {
     }
 
     public Member findLocalMember(String email) {
-        return memberRepository.findMemberByEmailAndProvider(email, Provider.LOCAL)
-                .orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        Member member = memberRepository.findMemberByEmail(email).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        List<ConnectedProvider> isSocial = connectedProviderRepository.findConnectedProvidersByMember(member);
+        return !isSocial.isEmpty() ? null : member;
     }
 
     @Transactional

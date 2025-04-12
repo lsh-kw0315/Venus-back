@@ -17,7 +17,7 @@ spring:
 #    console:
 #      enabled: true
   datasource:
-    url: jdbc:mysql://db.tmdgjsdl1.site:3306/venus_prac
+    url: jdbc:mysql://localhost:3306/venus_prac
     username: root
     password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -30,6 +30,7 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
         '[hibernate.default_batch_fetch_size]': 100
         '[hibernate.format_sql]': true
+
     show-sql: true
     output:
       ansi:
@@ -37,12 +38,10 @@ spring:
 
 
 
-
 logging:
   level:
     '[com.example.server]': DEBUG
     '[org.hibernate.type]': TRACE
-
 springdoc:
   swagger-ui:
     path: /api-test  # swagger-ui 접근 경로에 대한 별칭, 해당 주소로 접속해도 http://localhost:8080/swagger-ui/index.html로 리다이렉션 됨.

@@ -13,7 +13,7 @@ public class CommentInfinityScrollResponse {
 
     public CommentInfinityScrollResponse(List<CommentDTO> comments) {
         if (comments == null || comments.isEmpty()) {
-            comments = null;
+            this.comments = null;
             lastId = -1;
             lastTime = null;
         } else {

@@ -2,7 +2,6 @@ package com.ll.server.domain.member.entity;
 
 import com.ll.server.domain.member.dto.MemberUpdateParam;
 import com.ll.server.domain.member.enums.MemberRole;
-import com.ll.server.domain.member.enums.Provider;
 import com.ll.server.global.jpa.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -29,11 +28,6 @@ public class Member extends BaseEntity {
     @Enumerated(value = EnumType.STRING)
     @Column(nullable = false)
     private MemberRole role;
-
-    @Enumerated(value = EnumType.STRING)
-    @Column(nullable = false)
-    private Provider provider; // 로그인 타입
-    private String providerId; // 소셜로그인 시 ID                 /* 사용자 권한 */
 
     public void update(MemberUpdateParam param) {
         if (param.getNickname() != null && !param.getNickname().isBlank()) {

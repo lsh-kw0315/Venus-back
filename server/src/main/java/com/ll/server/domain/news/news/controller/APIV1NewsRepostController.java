@@ -40,10 +40,15 @@ public class APIV1NewsRepostController {
     @GetMapping("/infinityTest")
     public ApiResponse<?> getUnderRepostsInfinity(@PathVariable("newsId") Long newsId,
                                                   @RequestParam(value = "size", defaultValue = "20") int size,
-                                                  @RequestParam(value = "lastTime") LocalDateTime lastTime,
-                                                  @RequestParam(value = "lastId") Long lastRepostId) {
+                                                  @RequestParam(value = "lastTime",required = false) LocalDateTime lastTime,
+                                                  @RequestParam(value = "lastId",required = false) Long lastRepostId) {
 
-        List<RepostUnderNews> reposts = repostService.afterGetNewsRepost(newsId, size, lastTime, lastRepostId);
+        List<RepostUnderNews> reposts=null;
+        if(lastTime==null || lastRepostId == null) {
+            reposts = repostService.firstGetNewsRepost(newsId,size);
+        }else {
+            reposts = repostService.afterGetNewsRepost(newsId, size, lastTime, lastRepostId);
+        }
         NewsRepostInfinityResponse response = new NewsRepostInfinityResponse(reposts);
         return ApiResponse.of(response);
     }

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -50,12 +51,14 @@ public class Repost extends BaseEntity {
     @ToString.Exclude
     @Builder.Default
     @JsonIgnore
+    @BatchSize(size = 100)
     private List<Like> likes = new ArrayList<>();
 
     @OneToMany(mappedBy = "repost", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @Builder.Default
     @JsonIgnore
+    @BatchSize(size = 100)
     private List<Comment> comments = new ArrayList<>();
 
     @Builder.Default

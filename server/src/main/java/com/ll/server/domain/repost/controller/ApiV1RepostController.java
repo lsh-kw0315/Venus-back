@@ -107,13 +107,6 @@ public class ApiV1RepostController {
     }
 
 
-    //repost 최초 상세 조회. 댓글에 페이지네이션 적용 (커서 페이지네이션)
-    @GetMapping("/{repostId}/infinityTest")
-    public ApiResponse<RepostDTO> getRepostInfinity(@PathVariable("repostId") Long id) {
-        RepostDTO repost = repostService.getRepostDTOById(id);
-        return ApiResponse.of(repost);
-    }
-
 
     @GetMapping("/member/{memberId}")
     public ApiResponse<RepostOnly> getRepostById(@PathVariable("memberId") Long memberId,
@@ -172,10 +165,15 @@ public class ApiV1RepostController {
     //상세 조회 이후 댓글의 페이지네이션. (cursor)
     @GetMapping("/{repostId}/comments/infinityTest")
     public ApiResponse<?> getInfinityComment(@PathVariable("repostId") Long postId,
-                                             @RequestParam(value = "lastId") long lastCommentId,
-                                             @RequestParam(value = "lastTime") LocalDateTime lastTime,
+                                             @RequestParam(value = "lastId", required = false) Long lastCommentId,
+                                             @RequestParam(value = "lastTime", required = false) LocalDateTime lastTime,
                                              @RequestParam(value = "size", defaultValue = "20") int size) {
-        CommentInfinityScrollResponse result = new CommentInfinityScrollResponse(repostService.afterGetComment(postId, size, lastTime, lastCommentId));
+        CommentInfinityScrollResponse result = null;
+        if(lastTime == null || lastCommentId == null) {
+            result = new CommentInfinityScrollResponse(repostService.firstGetComment(postId,size));
+        }else {
+            result = new CommentInfinityScrollResponse(repostService.afterGetComment(postId, size, lastTime, lastCommentId));
+        }
         return ApiResponse.of(result);
     }
 
@@ -235,12 +233,32 @@ public class ApiV1RepostController {
     }
 
     @GetMapping("/search")
-    public List<RepostOnly> searchByContent(@RequestParam("keyword") String keyword) {
-        return repostService.searchContent(keyword);
+    public ApiResponse<CustomPage<?>> searchByContent(@RequestParam("keyword") String keyword,
+                                            @RequestParam(value = "page",defaultValue = "0")int page,
+                                            @RequestParam(value = "size",defaultValue = "20")int size) {
+        PageLimitSizeValidator.validateSize(page,size,MyConstant.PAGELIMITATION);
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.of(CustomPage.of(repostService.searchContent(keyword, pageable)));
+    }
+
+    @GetMapping("/searchInfinity")
+    public ApiResponse<RepostInfinityScrollResponse> searchByContentCursor(@RequestParam("keyword") String keyword,
+                                                      @RequestParam(value = "size",defaultValue = "20") int size,
+                                                      @RequestParam(value = "lastId",required = false)Long lastId,
+                                                      @RequestParam(value = "lastTime",required = false)LocalDateTime lastTime) {
+
+        List<RepostOnly> list=null;
+        if(lastTime == null || lastId == null){
+            list = repostService.searchContentFirst(keyword, size);
+        }else{
+            list = repostService.searchContentAfter(keyword, size, lastId, lastTime);
+        }
+
+        return ApiResponse.of(new RepostInfinityScrollResponse(list));
     }
 
     @GetMapping("/hot")
-    public List<RepostOnly> getHotTopics() {
-        return repostService.getHotTopics();
+    public ApiResponse<List<RepostOnly>> getHotTopics() {
+        return ApiResponse.of(repostService.getHotTopics());
     }
 }

@@ -92,7 +92,7 @@ public class MemberController {
         String accessToken = jwtUtil.getJwtFromHeader(request);
         if (accessToken == null) throw new CustomException(ReturnCode.NOT_AUTHORIZED);
 
-        if (!jwtUtil.validateToken(accessToken)) throw new CustomException(ReturnCode.NOT_AUTHORIZED);
+        if (!jwtUtil.isTokenValid(accessToken)) throw new CustomException(ReturnCode.NOT_AUTHORIZED);
 
         MemberDto member = jwtUtil.getUserInfoFromToken(accessToken);
 
@@ -108,7 +108,7 @@ public class MemberController {
             //return new ResponseEntity<>("RefreshToken 이 존재하지 않습니다.", HttpStatus.BAD_REQUEST);
         }
 
-        if (!jwtUtil.validateToken(refreshToken)) {
+        if (!jwtUtil.isTokenValid(refreshToken)) {
             throw new CustomException(ReturnCode.NOT_AUTHORIZED);
             //return new ResponseEntity<>("유효하지 않은 RefreshToken 입니다.", HttpStatus.BAD_REQUEST);
         }
@@ -147,7 +147,8 @@ public class MemberController {
 
     @PatchMapping("/password")
     public ApiResponse<?> changePassword(@RequestBody PasswordChangeRequest request) {
-        memberService.updatePassword(request.getOldPassword(), request.getNewPassword());
+        long id = AuthUtil.getCurrentMemberId();
+        memberService.updatePassword(id, request.getOldPassword(), request.getNewPassword());
 
         return ApiResponse.of(ReturnCode.SUCCESS);
     }

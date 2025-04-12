@@ -5,10 +5,11 @@ networks:
     driver: bridge
 
 services:
-  db:
-    build:
-      context: ./mysql
-      dockerfile: Dockerfile
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: venus_prac
     ports:
       - "3306:3306"
     volumes:
@@ -25,36 +26,36 @@ services:
     networks:
       - app-network
 
-  server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
-      - redis
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/metadb?useSSL=false&serverTimezone=UTC&useLegacyDatetimeCode=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_DRIVER: com.mysql.cj.jdbc.Driver
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root1234
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      JAVA_OPTS: >
-        -XX:+UseContainerSupport
-        -XX:MaxRAMPercentage=75.0
-        -Xms128m
-        -Xmx384m
-        -XX:+UseSerialGC
-        -XX:+UseStringDeduplication
-        -Djava.security.egd=file:/dev/./urandom
-    networks:
-      - app-network
-    command: ["sh", "-c", "sleep 10 && java -jar app.jar"]
+#  server:
+#    build:
+#      context: ./server
+#      dockerfile: Dockerfile
+#    restart: always
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      - db
+#      - redis
+#    environment:
+#      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/metadb?useSSL=false&serverTimezone=UTC&useLegacyDatetimeCode=false&allowPublicKeyRetrieval=true
+#      SPRING_DATASOURCE_DRIVER: com.mysql.cj.jdbc.Driver
+#      SPRING_DATASOURCE_USERNAME: root
+#      SPRING_DATASOURCE_PASSWORD: root1234
+#      SPRING_REDIS_HOST: redis
+#      SPRING_REDIS_PORT: 6379
+#      JAVA_OPTS: >
+#        -XX:+UseContainerSupport
+#        -XX:MaxRAMPercentage=75.0
+#        -Xms128m
+#        -Xmx384m
+#        -XX:+UseSerialGC
+#        -XX:+UseStringDeduplication
+#        -Djava.security.egd=file:/dev/./urandom
+#    networks:
+#      - app-network
+#    command: ["sh", "-c", "sleep 10 && java -jar app.jar"]
 
 volumes:
-  db_data:
+  mysql_data:
   redis_data:
 

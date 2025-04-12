@@ -7,10 +7,13 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.ll.server.domain.elasticsearch.repost.doc.RepostDoc;
+import com.ll.server.domain.mention.repostmention.entity.RepostMention;
+import com.ll.server.domain.mention.repostmention.repository.RepostMentionRepository;
 import com.ll.server.domain.repost.dto.RepostOnly;
 import com.ll.server.domain.repost.entity.Repost;
 import com.ll.server.domain.repost.repository.RepostRepository;
 import com.ll.server.global.config.ElasticSearchClientConfig;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.data.domain.Page;
@@ -25,6 +28,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RepostDocService {
     private final RepostRepository repostRepository;
+    private final RepostMentionRepository repostMentionRepository;
 
     @SneakyThrows
     @Transactional(readOnly = true)
@@ -58,12 +63,16 @@ public class RepostDocService {
         SearchResponse<RepostDoc> response = client.search(searchRequest, RepostDoc.class);
 
         List<Long> ids = response.hits().hits().stream().map(hit -> Objects.requireNonNull(hit.source()).getId()).toList();
-        long totalElements = response.hits().hits().size();
+        long totalElements = Objects.requireNonNull(response.hits().total()).value();
 
         List<Repost> realResult = repostRepository.findAllByIdInAndDeletedAtIsNullOrderByCreateDateDescIdDesc(ids);
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(realResult);
+        Map<Long, List<RepostMention>> map = repostMentions.stream()
+                .collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
+
         return new PageImpl<>(
                 realResult.stream()
-                        .map(RepostOnly::new)
+                        .map(repost -> new RepostOnly(repost,map.get(repost.getId())))
                         .collect(Collectors.toList()),
                 pageable,
                 totalElements
@@ -92,14 +101,7 @@ public class RepostDocService {
                                 )
         );
 
-        SearchResponse<RepostDoc> response = client.search(searchRequest, RepostDoc.class);
-
-        List<Long> ids = response.hits().hits().stream().map(hit -> Objects.requireNonNull(hit.source()).getId()).toList();
-
-        return repostRepository.findAllByIdInAndDeletedAtIsNullOrderByCreateDateDescIdDesc(ids)
-                .stream()
-                .map(RepostOnly::new)
-                .collect(Collectors.toList());
+        return getRepostOnlyList(client, searchRequest);
     }
 
     @SneakyThrows
@@ -127,15 +129,24 @@ public class RepostDocService {
                         .searchAfter(FieldValue.of(formattedDate), FieldValue.of(lastId))
         );
 
+        return getRepostOnlyList(client, searchRequest);
+    }
+
+    @NotNull
+    private List<RepostOnly> getRepostOnlyList(ElasticsearchClient client, SearchRequest searchRequest) throws IOException {
         SearchResponse<RepostDoc> response = client.search(searchRequest, RepostDoc.class);
 
         List<Long> ids = response.hits().hits().stream().map(hit -> Objects.requireNonNull(hit.source()).getId()).toList();
 
-        return repostRepository.findAllByIdInAndDeletedAtIsNullOrderByCreateDateDescIdDesc(ids)
-                .stream()
-                .map(RepostOnly::new)
-                .collect(Collectors.toList());
+        List<Repost> realResult = repostRepository.findAllByIdInAndDeletedAtIsNullOrderByCreateDateDescIdDesc(ids);
+        List<RepostMention> repostMentions = repostMentionRepository.getMentionsOfRelatedRepost(realResult);
+        Map<Long, List<RepostMention>> map = repostMentions.stream()
+                .collect(Collectors.groupingBy(repostMention -> repostMention.getRepost().getId()));
 
+        return realResult
+                .stream()
+                .map(repost -> new RepostOnly(repost, map.get(repost.getId())))
+                .collect(Collectors.toList());
     }
 
 }

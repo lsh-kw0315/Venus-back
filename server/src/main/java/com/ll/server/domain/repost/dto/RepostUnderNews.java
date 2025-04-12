@@ -5,6 +5,7 @@ import com.ll.server.domain.comment.dto.CommentResponse;
 import com.ll.server.domain.like.dto.LikeDTO;
 import com.ll.server.domain.like.dto.LikeResponse;
 import com.ll.server.domain.mention.repostmention.dto.RepostMentionDTO;
+import com.ll.server.domain.mention.repostmention.entity.RepostMention;
 import com.ll.server.domain.repost.entity.Repost;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -54,6 +55,21 @@ public class RepostUnderNews {
         imageUrl = repost.getImageUrl();
 
         createDate = repost.getCreateDate();
+
+    }
+
+    public RepostUnderNews(Repost repost, CommentResponse commentInfo, LikeResponse likeInfo, List<RepostMention> mentions){
+        repostId = repost.getId();
+        writerId = repost.getMember().getId();
+        nickname = repost.getMember().getNickname();
+        content = repost.getContent();
+        imageUrl = repost.getImageUrl();
+        createDate = repost.getCreateDate();
+
+        //따로 받아옴
+        this.commentInfo = commentInfo;
+        this.likeInfo = likeInfo;
+        this.mentions = mentions.stream().map(RepostMentionDTO::new).collect(Collectors.toList());
 
     }
 }

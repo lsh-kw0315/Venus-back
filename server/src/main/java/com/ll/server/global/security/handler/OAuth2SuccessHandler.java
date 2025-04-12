@@ -2,6 +2,7 @@ package com.ll.server.global.security.handler;
 
 import com.ll.server.domain.member.dto.MemberDto;
 import com.ll.server.domain.member.entity.Member;
+import com.ll.server.global.redis.RedisService;
 import com.ll.server.global.response.enums.ReturnCode;
 import com.ll.server.global.response.exception.CustomException;
 import com.ll.server.global.security.custom.CustomOAuth2User;
@@ -24,6 +25,7 @@ import java.io.IOException;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
+    private final RedisService redisService;
 
     @Value("${front.redirect-url}")
     private String redirectUrl;
@@ -46,9 +48,10 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.setHeader(JwtUtil.AUTHORIZATION_HEADER, JwtUtil.BEARER_PREFIX + accessToken);
 
             log.info("OAuth2SuccessHandler에서 정상적으로 accessToken과 RefreshToken을 생성 및 쿠키에 저장하였습니다.");
+            redisService.saveRefreshToken(memberDto.getEmail(),refreshToken);
 
-            //response.sendRedirect("http://localhost:8080/api-test");
-            response.sendRedirect(redirectUrl);
+            response.sendRedirect("http://localhost:8080/api-test");
+            //response.sendRedirect(redirectUrl);
 
         } catch (Exception e) {
             log.error("OAuth2 인증 성공 후 처리 중 오류 발생: {}", e.getMessage(), e);

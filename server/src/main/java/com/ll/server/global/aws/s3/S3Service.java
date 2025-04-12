@@ -15,7 +15,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class S3Service {
     private final S3Client s3Client;
-    private static final String BUCKET_NAME = "dev-bucket-yoon20000201-1";
+    private static final String BUCKET_NAME = "klover-bucket-lshkw0315-1";
 
     public String uploadFile(MultipartFile file, String dirName) throws IOException {
         String fileName = dirName + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();

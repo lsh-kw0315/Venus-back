@@ -32,10 +32,10 @@ public class FollowService {
     public FollowDTO save(Long followerId, Long followeeId) {
         if (followerId.equals(followeeId)) return null;
 
-        Member follower = memberRepository.findById(followerId).get();
-        Member followee = memberRepository.findById(followeeId).get();
+        Member follower = memberRepository.findById(followerId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        Member followee = memberRepository.findById(followeeId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
 
-        Follow find = followRepository.findByFollower_IdAndFollowee_Id(followerId, followeeId);
+        Follow find = followRepository.findByFollowerAndFollowee(follower, followee);
         if (find != null) throw new CustomException(ReturnCode.ALREADY_EXIST);
 
         Follow follow = Follow.builder()
@@ -47,7 +47,8 @@ public class FollowService {
     }
 
     public Page<FollowDTO> findByFollower(Long followerId, Pageable pageable) {
-        Page<Follow> result = followRepository.findFollowsByFollower_Id(followerId, pageable);
+        Member follower = memberRepository.findById(followerId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        Page<Follow> result = followRepository.findFollowsByFollower(follower, pageable);
         return new PageImpl<>(
                 result.getContent().stream().map(FollowDTO::new).collect(Collectors.toList()),
                 result.getPageable(),
@@ -56,7 +57,8 @@ public class FollowService {
     }
 
     public Page<FollowDTO> findByFollowee(Long followeeId, Pageable pageable) {
-        Page<Follow> result = followRepository.findFollowsByFollowee_Id(followeeId, pageable);
+        Member follower = memberRepository.findById(followeeId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        Page<Follow> result = followRepository.findFollowsByFollowee(follower, pageable);
         return new PageImpl<>(
                 result.getContent().stream().map(FollowDTO::new).collect(Collectors.toList()),
                 result.getPageable(),

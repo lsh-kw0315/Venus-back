@@ -4,6 +4,9 @@ import com.ll.server.domain.member.entity.Member;
 import com.ll.server.domain.mention.repostmention.entity.RepostMention;
 import com.ll.server.domain.mention.repostmention.repository.RepostMentionRepository;
 import com.ll.server.domain.repost.entity.Repost;
+import com.ll.server.domain.repost.repository.RepostRepository;
+import com.ll.server.global.response.enums.ReturnCode;
+import com.ll.server.global.response.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RepostMentionService {
     private final RepostMentionRepository repostMentionRepository;
+    private final RepostRepository repostRepository;
 
     @Transactional
     public RepostMention save(Repost repost, Member member) {
@@ -27,6 +31,7 @@ public class RepostMentionService {
     }
 
     public List<RepostMention> findByRepost(Long repostId) {
-        return repostMentionRepository.findRepostMentionsByRepost_Id(repostId);
+        Repost repost = repostRepository.findByIdAndDeletedAtIsNull(repostId).orElseThrow(() -> new CustomException(ReturnCode.NOT_FOUND_ENTITY));
+        return repostMentionRepository.getMentionsOfOneRepost(repost);
     }
 }
